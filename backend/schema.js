@@ -1,37 +1,42 @@
 const { gql } = require("apollo-server-express");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+
+require("dotenv").config();
+const SECRET_KEY = process.env.JWT_SECRET;
+
 
 let savedArticles = [];
-// let users = [];
+
 let users = [
-    {
-      id: "1",
-      name: "Alice John",
-      email: "alice@example.com",
-      username: "alicej",
-      password: "test123!@#",
-      loginCount: 5,
-      savedArticles: [],
-    },
-    {
-      id: "2",
-      name: "Bob Martin",
-      email: "bob@example.com",
-      username: "bobm",
-      password: "bob123!@#",
-      loginCount: 3,
-      savedArticles: [],
-    },
-    {
-      id: "3",
-      name: "Carla Lee",
-      email: "carla@example.com",
-      username: "carla123",
-      password: "carla123!@#",
-      loginCount: 7,
-      savedArticles: [],
-    },
-  ];
-  
+  {
+    id: "1",
+    name: "Alice John",
+    email: "alice@example.com",
+    username: "alicej",
+    password: "test123!@#",
+    loginCount: 5,
+    savedArticles: [],
+  },
+  {
+    id: "2",
+    name: "Bob Martin",
+    email: "bob@example.com",
+    username: "bobm",
+    password: "bob123!@#",
+    loginCount: 3,
+    savedArticles: [],
+  },
+  {
+    id: "3",
+    name: "Carla Lee",
+    email: "carla@example.com",
+    username: "carla123",
+    password: "carla123!@#",
+    loginCount: 7,
+    savedArticles: [],
+  },
+];
 
 const typeDefs = gql`
   type User {
@@ -52,6 +57,11 @@ const typeDefs = gql`
     userId: ID!
   }
 
+  type AuthPayload {
+    token: String!
+    user: User!
+  }
+
   type Query {
     users: [User]
     userByEmail(email: String!): User
@@ -65,6 +75,11 @@ const typeDefs = gql`
       username: String!
       password: String!
     ): User
+
+    loginUser(
+      email: String!
+      password: String!
+    ): AuthPayload
 
     saveArticle(
       title: String!
@@ -81,21 +96,10 @@ const resolvers = {
   Query: {
     users: () => users,
 
-    userByEmail: (_, { email }) => {
-        const user = users.find((user) => user.email === email);
-        console.log("Looking for user by email:", email);
-      
-        if (user) {
-         
-          user.loginCount = (user.loginCount || 0) + 1;
-          console.log(" Found user with loginCount updated:", user);
-        } else {
-          console.log(" User not found");
-        }
-      
-        return user;
-      },
-      
+userByEmail: (_, { email }) => {
+  return users.find((user) => user.email === email);
+},
+
 
     savedArticles: (_, { userId }) => {
       const filtered = savedArticles.filter((a) => a.userId === userId);
@@ -104,22 +108,56 @@ const resolvers = {
   },
 
   Mutation: {
-    addUser: (_, { name, email, username, password }) => {
+    addUser: async (_, { name, email, username, password }) => {
+      const hashedPassword = await bcrypt.hash(password, 10);
+
       const newUser = {
         id: String(Date.now()),
         name,
         email,
         username,
-        password,
+        password: hashedPassword,
         loginCount: 0,
         savedArticles: [],
       };
+
       users.push(newUser);
-      console.log(" New user registered:", newUser);
+      console.log("🔐 New user registered with hashed password:", newUser);
       return newUser;
     },
 
-    saveArticle: (_, { title, url, image, userId }) => {
+loginUser: async (_, { email, password }) => {
+  const user = users.find((u) => u.email === email);
+  if (!user) throw new Error("User not found");
+
+  const isValid = await bcrypt.compare(password, user.password);
+  if (!isValid) {
+    console.log("❌ Incorrect password for:", email);
+    throw new Error("Incorrect password");
+  }
+
+  user.loginCount = (user.loginCount || 0) + 1;
+
+  const token = jwt.sign({ userId: user.id }, SECRET_KEY, { expiresIn: "1h" });
+  console.log("✅ JWT issued:", token);
+
+  return {
+    token,
+    user,
+  };
+},
+
+    saveArticle: (_, { title, url, image, userId }, context) => {
+      const authHeader = context.req.headers.authorization || "";
+      const token = authHeader.replace("Bearer ", "");
+
+      try {
+        const payload = jwt.verify(token, SECRET_KEY);
+        if (payload.userId !== userId) throw new Error("Not authorized");
+      } catch (err) {
+        throw new Error("Invalid token");
+      }
+
       const newArticle = {
         id: String(Date.now()),
         title,
@@ -127,6 +165,7 @@ const resolvers = {
         image,
         userId,
       };
+
       savedArticles.push(newArticle);
       return newArticle;
     },

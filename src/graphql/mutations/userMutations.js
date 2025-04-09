@@ -49,3 +49,17 @@ export const DELETE_USER = gql`
     deleteUser(id: $id)
   }
 `;
+
+export const LOGIN_USER = gql`
+  mutation LoginUser($email: String!, $password: String!) {
+    loginUser(email: $email, password: $password) {
+      token
+      user {
+        id
+        name
+        email
+        username
+      }
+    }
+  }
+`;

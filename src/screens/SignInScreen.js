@@ -8,22 +8,42 @@ import {
 } from "react-native";
 import { useAuth } from "../context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
-import { Ionicons } from "@expo/vector-icons"; 
+import { Ionicons } from "@expo/vector-icons";
+import { useMutation } from "@apollo/client";
+import { LOGIN_USER } from "../graphql/mutations/userMutations";
 
 export default function SignInScreen() {
-  const { signIn } = useAuth();
+  const { setAuthenticatedUser } = useAuth(); // <--- usamos esta
   const navigation = useNavigation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleSignIn = () => {
-    signIn(email, password);
+  const [loginUser] = useMutation(LOGIN_USER);
+
+  const handleSignIn = async () => {
+    try {
+      const { data } = await loginUser({
+        variables: { email, password },
+      });
+
+      if (data?.loginUser) {
+        const { user, token } = data.loginUser;
+        console.log("✅ Login success:", user);
+        console.log("🔐 Token:", token);
+
+        setAuthenticatedUser(user, token); // <--- esto es lo que importa
+      }
+    } catch (error) {
+      console.error("❌ Error logging in:", error.message);
+    }
   };
 
   return (
     <View style={styles.container}>
-     
-      <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate("Start")}>
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={() => navigation.navigate("Start")}
+      >
         <Ionicons name="arrow-back" size={24} color="#1e3a8a" />
       </TouchableOpacity>
 
@@ -35,6 +55,7 @@ export default function SignInScreen() {
         value={email}
         onChangeText={setEmail}
         placeholderTextColor="#aaa"
+        autoCapitalize="none"
       />
       <TextInput
         placeholder="Password"
@@ -51,6 +72,7 @@ export default function SignInScreen() {
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {

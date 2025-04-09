@@ -11,6 +11,7 @@ async function startServer() {
     typeDefs,
     resolvers,
     introspection: true, 
+context: ({ req }) => ({ req }),
   });
 
   await server.start();

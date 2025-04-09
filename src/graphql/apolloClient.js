@@ -2,7 +2,7 @@ import { ApolloClient, InMemoryCache } from '@apollo/client';
 import { GRAPHQL_URI } from '@env'; 
 
 const client = new ApolloClient({
-  uri: GRAPHQL_URI,
+  uri: "https://newsappb.xyz/graphql",
   cache: new InMemoryCache(),
 });
 
